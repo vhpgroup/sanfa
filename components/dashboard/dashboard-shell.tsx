@@ -94,12 +94,27 @@ export function DashboardShell() {
     URL.revokeObjectURL(url);
   }
 
+  async function readImportFile(file: File) {
+    const buffer = await file.arrayBuffer();
+    const encodings = ["utf-8", "gb18030", "gbk", "big5"];
+
+    for (const encoding of encodings) {
+      try {
+        return new TextDecoder(encoding, { fatal: true }).decode(buffer);
+      } catch {
+        // Try the next common Excel CSV encoding.
+      }
+    }
+
+    return new TextDecoder("utf-8").decode(buffer);
+  }
+
   async function handleImportExcel(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
 
-    const csv = await file.text();
+    const csv = await readImportFile(file);
     const importedOrders = csvToOrders(csv);
     const existingIdByCode = new Map(orders.map((order) => [order.code, order.id]));
     updateOrders(

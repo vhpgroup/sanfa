@@ -110,7 +110,7 @@ export function csvToOrders(csv: string): ProductionOrder[] {
 
   const delimiter = detectDelimiter(lines[0]);
   const headers = parseDelimitedLine(lines[0], delimiter).map((header) => header.trim());
-  const codeIndex = findHeaderIndex(headers, ["Mã đơn", "Ma don", "Order Code", "orderCode"]);
+  const codeIndex = findHeaderIndex(headers, ["Mã đơn", "Ma don", "Order Code", "orderCode", "订单号", "訂單號"]);
   const quantityIndex = findHeaderIndex(headers, [
     "Số lượng đơn",
     "So luong don",
@@ -118,11 +118,13 @@ export function csvToOrders(csv: string): ProductionOrder[] {
     "orderQuantity",
     "Ordered Qty",
     "orderedQty",
+    "订单数量",
+    "訂單數量",
   ]);
   const etdIndex = findHeaderIndex(headers, ["ETD", "etd"]);
   const styleIndex = findHeaderIndex(headers, ["Style", "style"]);
-  const colorIndex = findHeaderIndex(headers, ["Màu", "Mau", "Color", "color"]);
-  const technologyIndex = findHeaderIndex(headers, ["Công nghệ", "Cong nghe", "Technology", "technology"]);
+  const colorIndex = findHeaderIndex(headers, ["Màu", "Mau", "Color", "color", "颜色", "顏色"]);
+  const technologyIndex = findHeaderIndex(headers, ["Công nghệ", "Cong nghe", "Technology", "technology", "工艺", "工藝", "工艺技术", "工藝技術"]);
   const safeCodeIndex = codeIndex >= 0 ? codeIndex : 0;
   const safeQuantityIndex = quantityIndex >= 0 ? quantityIndex : 1;
   const safeEtdIndex = etdIndex >= 0 ? etdIndex : 2;
