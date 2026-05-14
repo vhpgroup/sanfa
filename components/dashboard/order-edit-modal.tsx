@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { productionSizes } from "@/lib/constants";
+import { normalizeDate } from "@/lib/date-utils";
 import { t } from "@/lib/i18n";
 import type { Language, ProductionOrder, ProductionSize } from "@/types/production";
 
@@ -26,18 +27,27 @@ export function OrderEditModal({ language, open, order, onOpenChange, onSave }: 
   const [sizePlan, setSizePlan] = useState<Record<ProductionSize, string>>(
     productionSizes.reduce((acc, size) => ({ ...acc, [size]: "0" }), {} as Record<ProductionSize, string>),
   );
+  const [deliveryPlan, setDeliveryPlan] = useState<Record<ProductionSize, string>>(
+    productionSizes.reduce((acc, size) => ({ ...acc, [size]: "0" }), {} as Record<ProductionSize, string>),
+  );
 
   useEffect(() => {
     if (!open || !order) return;
     setCode(order.code);
     setOrderQuantity(String(order.orderQuantity));
-    setEtd(order.etd);
+    setEtd(normalizeDate(order.etd));
     setStyle(order.style);
     setColor(order.color);
     setTechnology(order.technology);
     setSizePlan(
       productionSizes.reduce(
         (acc, size) => ({ ...acc, [size]: String(order.sizePlan[size]) }),
+        {} as Record<ProductionSize, string>,
+      ),
+    );
+    setDeliveryPlan(
+      productionSizes.reduce(
+        (acc, size) => ({ ...acc, [size]: String(order.deliveryPlan?.[size] ?? 0) }),
         {} as Record<ProductionSize, string>,
       ),
     );
@@ -51,12 +61,17 @@ export function OrderEditModal({ language, open, order, onOpenChange, onSave }: 
       id: order.id,
       code: code.trim(),
       orderQuantity: Math.max(Number(orderQuantity) || 0, 0),
-      etd,
+      etd: normalizeDate(etd),
       style: style.trim(),
       color: color.trim(),
       technology: technology.trim(),
       sizePlan: productionSizes.reduce(
         (acc, size) => ({ ...acc, [size]: Math.max(Number(sizePlan[size]) || 0, 0) }),
+        {} as ProductionOrder["sizePlan"],
+      ),
+      producedPlan: order.producedPlan,
+      deliveryPlan: productionSizes.reduce(
+        (acc, size) => ({ ...acc, [size]: Math.max(Number(deliveryPlan[size]) || 0, 0) }),
         {} as ProductionOrder["sizePlan"],
       ),
     });
@@ -105,6 +120,20 @@ export function OrderEditModal({ language, open, order, onOpenChange, onSave }: 
                   min={0}
                   value={sizePlan[size]}
                   onChange={(event) => setSizePlan((current) => ({ ...current, [size]: event.target.value }))}
+                />
+              </label>
+            ))}
+          </div>
+          <div className="col-span-4 grid grid-cols-8 gap-2 rounded-xl border bg-emerald-50 p-3">
+            {productionSizes.map((size) => (
+              <label key={size} className="grid gap-1 text-xs font-medium text-emerald-700">
+                {size} giao
+                <Input
+                  className="h-8 bg-white px-2 text-right text-xs"
+                  type="number"
+                  min={0}
+                  value={deliveryPlan[size]}
+                  onChange={(event) => setDeliveryPlan((current) => ({ ...current, [size]: event.target.value }))}
                 />
               </label>
             ))}

@@ -14,6 +14,7 @@ import { StatCards } from "@/components/dashboard/stat-cards";
 import { Button } from "@/components/ui/button";
 import { csvToOrders, ordersToCsv } from "@/lib/excel-csv";
 import { t } from "@/lib/i18n";
+import { getDashboardStats, getSummaryTotals } from "@/lib/production-calculations";
 import { selectOrderProgress, useProductionStore } from "@/store/production-store";
 import type { NewProductionEntry, ProductionEntry, ProductionOrder } from "@/types/production";
 
@@ -47,6 +48,8 @@ export function DashboardShell() {
   } = useProductionStore();
 
   const progress = useMemo(() => selectOrderProgress(orders, entries), [orders, entries]);
+  const summaryTotals = useMemo(() => getSummaryTotals(orders, entries), [orders, entries]);
+  const dashboardStats = useMemo(() => getDashboardStats(orders, entries), [orders, entries]);
   const filteredProgress = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return progress;
@@ -58,7 +61,7 @@ export function DashboardShell() {
         .includes(query),
     );
   }, [progress, searchQuery]);
-  const totalOrderQuantity = progress.reduce((sum, order) => sum + order.orderQuantity, 0);
+  const totalOrderQuantity = dashboardStats.totalDelivery;
 
   function showToast(message: string) {
     setToast(message);
@@ -138,10 +141,11 @@ export function DashboardShell() {
                 {t(language, "inputProduction")}
               </Button>
             </div>
-            <StatCards language={language} progress={progress} />
+            <StatCards language={language} stats={dashboardStats} />
             <ProductionTable
               language={language}
               progress={filteredProgress}
+              totals={summaryTotals}
               onEditAllOrders={() => setOrdersBulkModalOpen(true)}
               onImportClick={() => fileInputRef.current?.click()}
               onAddOrder={() => setOrdersBulkModalOpen(true)}
@@ -158,7 +162,7 @@ export function DashboardShell() {
                 showToast(t(language, "deleted"));
               }}
             />
-            <ProductionChart language={language} days={days} entries={entries} progress={progress} />
+            <ProductionChart language={language} days={days} entries={entries} stats={dashboardStats} />
           </div>
           <DayPanel
             language={language}

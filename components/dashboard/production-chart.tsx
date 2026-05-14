@@ -18,27 +18,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { t } from "@/lib/i18n";
 import { formatNumber, formatPercent } from "@/lib/utils";
 import { getDayTotal } from "@/store/production-store";
-import type { Language, OrderProgress, ProductionDay, ProductionEntry } from "@/types/production";
+import type { DashboardStats } from "@/lib/production-calculations";
+import type { Language, ProductionDay, ProductionEntry } from "@/types/production";
 
 type ProductionChartProps = {
   language: Language;
   days: ProductionDay[];
   entries: ProductionEntry[];
-  progress: OrderProgress[];
+  stats: DashboardStats;
 };
 
-export function ProductionChart({ language, days, entries, progress }: ProductionChartProps) {
+export function ProductionChart({ language, days, entries, stats }: ProductionChartProps) {
   const dayData = days.map((day) => ({
     name: day.label,
     total: getDayTotal(day.id, entries),
   }));
 
-  const totalOrderQuantity = progress.reduce((sum, order) => sum + order.orderQuantity, 0);
-  const completed = progress.reduce((sum, order) => sum + order.completed, 0);
-  const remaining = Math.max(totalOrderQuantity - completed, 0);
   const completionData = [
-    { name: t(language, "completed"), value: completed, color: "#16a34a" },
-    { name: t(language, "remaining"), value: remaining, color: "#ef4444" },
+    { name: t(language, "completed"), value: Math.max(stats.totalCompleted, 0), color: "#16a34a" },
+    { name: t(language, "remaining"), value: Math.max(stats.totalRemaining, 0), color: "#ef4444" },
   ];
 
   return (
@@ -76,7 +74,7 @@ export function ProductionChart({ language, days, entries, progress }: Productio
             </PieChart>
           </ResponsiveContainer>
           <div className="-mt-12 text-center">
-            <div className="text-xl font-semibold text-slate-950">{formatPercent(totalOrderQuantity ? (completed / totalOrderQuantity) * 100 : 0)}</div>
+            <div className="text-xl font-semibold text-slate-950">{formatPercent(stats.completionRate)}</div>
             <div className="text-xs text-slate-500">{t(language, "completionRate")}</div>
           </div>
         </CardContent>

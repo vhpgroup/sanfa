@@ -1,16 +1,18 @@
 "use client";
 
-import { Edit3, FileSpreadsheet, Plus, Trash2, Upload } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Edit3, Trash2 } from "lucide-react";
 import { usePagination } from "@/hooks/use-pagination";
 import { productionSizes } from "@/lib/constants";
+import { formatDateDisplay } from "@/lib/date-utils";
 import { t } from "@/lib/i18n";
 import { cn, formatNumber, formatPercent } from "@/lib/utils";
+import type { SummaryTotals } from "@/lib/production-calculations";
 import type { Language, OrderProgress } from "@/types/production";
 
 type ProductionTableProps = {
   language: Language;
   progress: OrderProgress[];
+  totals: SummaryTotals;
   onEditAllOrders: () => void;
   onDeleteAllOrders: () => void;
   onEditOrder: (order: OrderProgress) => void;
@@ -19,47 +21,14 @@ type ProductionTableProps = {
   onAddOrder: () => void;
 };
 
-function EmptyState({
-  language,
-  onImportClick,
-  onAddOrder,
-}: {
-  language: Language;
-  onImportClick: () => void;
-  onAddOrder: () => void;
-}) {
-  return (
-    <div className="flex min-h-[360px] flex-1 items-center justify-center bg-white px-6">
-      <div className="flex max-w-md flex-col items-center text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-          <FileSpreadsheet className="h-8 w-8" />
-        </div>
-        <h3 className="mt-4 text-lg font-semibold text-slate-900">{t(language, "noEntries")}</h3>
-        <p className="mt-2 text-sm text-slate-500">{t(language, "emptyOrderHint")}</p>
-        <div className="mt-5 flex items-center gap-2">
-          <Button variant="outline" onClick={onImportClick}>
-            <Upload className="h-4 w-4" />
-            {t(language, "importExcel")}
-          </Button>
-          <Button onClick={onAddOrder}>
-            <Plus className="h-4 w-4" />
-            {t(language, "addOrder")}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function ProductionTable({
   language,
   progress,
+  totals,
   onEditAllOrders,
   onDeleteAllOrders,
   onEditOrder,
   onDeleteOrder,
-  onImportClick,
-  onAddOrder,
 }: ProductionTableProps) {
   const hasData = progress.length > 0;
   const {
@@ -72,32 +41,6 @@ export function ProductionTable({
     setPage,
     setPageSize,
   } = usePagination(progress, 10);
-  const totals = progress.reduce(
-    (acc, order) => ({
-      orderQuantity: acc.orderQuantity + order.orderQuantity,
-      deliveredTotal: acc.deliveredTotal + order.deliveredTotal,
-      completed: acc.completed + order.completed,
-      remaining: acc.remaining + order.remaining,
-      sizePlan: productionSizes.reduce(
-        (sizeAcc, size) => ({
-          ...sizeAcc,
-          [size]: sizeAcc[size] + order.sizePlan[size],
-        }),
-        acc.sizePlan,
-      ),
-    }),
-    {
-      orderQuantity: 0,
-      deliveredTotal: 0,
-      completed: 0,
-      remaining: 0,
-      sizePlan: productionSizes.reduce(
-        (acc, size) => ({ ...acc, [size]: 0 }),
-        {} as OrderProgress["sizePlan"],
-      ),
-    },
-  );
-  const totalRate = totals.orderQuantity > 0 ? (totals.completed / totals.orderQuantity) * 100 : 0;
   const headers = [
     t(language, "stt"),
     t(language, "orderCode"),
@@ -140,9 +83,6 @@ export function ProductionTable({
           </button>
         </div>
       </div>
-      {!hasData ? (
-        <EmptyState language={language} onImportClick={onImportClick} onAddOrder={onAddOrder} />
-      ) : (
       <div className="production-table-scroll table-scroll min-h-0 flex-1 overflow-auto">
         <table className="min-w-[2180px] border-separate border-spacing-0 text-[11.5px]">
           <thead className="sticky top-0 z-20 bg-slate-100 text-slate-700 shadow-sm">
@@ -165,7 +105,13 @@ export function ProductionTable({
             </tr>
           </thead>
           <tbody>
-            {paginatedItems.map((order, index) => (
+            {paginatedItems.length === 0 ? (
+              <tr>
+                <td colSpan={headers.length + 1} className="h-24 border-b border-slate-200 text-center text-sm text-slate-500">
+                  {t(language, "noEntries")}
+                </td>
+              </tr>
+            ) : paginatedItems.map((order, index) => (
               <tr key={order.id} className="odd:bg-white even:bg-slate-50/70 hover:bg-blue-50/80">
                 <td className="sticky left-0 z-10 h-8 w-14 min-w-14 border-b border-r border-slate-200 bg-inherit px-2 text-slate-500">{startItem + index}</td>
                 <td className="sticky left-14 z-10 w-[170px] min-w-[170px] border-b border-r border-slate-200 bg-inherit px-2 shadow-[8px_0_14px_rgba(15,23,42,0.04)]">
@@ -180,14 +126,14 @@ export function ProductionTable({
                     </button>
                   </div>
                 </td>
-                <td className="border-b border-r border-slate-200 px-2 text-right font-semibold tabular-nums">{formatNumber(order.orderQuantity)}</td>
-                <td className="border-b border-r border-slate-200 px-2">{order.etd}</td>
+                <td className="border-b border-r border-slate-200 px-2 text-right font-semibold tabular-nums">{formatNumber(order.orderedTotal)}</td>
+                <td className="border-b border-r border-slate-200 px-2">{formatDateDisplay(order.etd)}</td>
                 <td className="border-b border-r border-slate-200 px-2">{order.style}</td>
                 <td className="border-b border-r border-slate-200 px-2">{order.color}</td>
                 <td className="border-b border-r border-slate-200 px-2">{order.technology}</td>
                 {productionSizes.map((size) => (
                   <td key={size} className="border-b border-r border-slate-200 px-2 text-right tabular-nums">
-                    {formatNumber(order.sizePlan[size])}
+                    {formatNumber(order.completedBySize[size])}
                   </td>
                 ))}
                 <td className="border-b border-r border-slate-200 px-2 text-right font-bold text-slate-950 tabular-nums">{formatNumber(order.deliveredTotal)}</td>
@@ -224,13 +170,13 @@ export function ProductionTable({
               <td className="border-r border-white/10 px-2" colSpan={4} />
               {productionSizes.map((size) => (
                 <td key={size} className="border-r border-white/10 px-2 text-right font-semibold tabular-nums">
-                  {formatNumber(totals.sizePlan[size])}
+                  {formatNumber(totals.completedBySize[size])}
                 </td>
               ))}
               <td className="border-r border-white/10 px-2 text-right font-semibold tabular-nums">{formatNumber(totals.deliveredTotal)}</td>
               <td className="border-r border-white/10 px-2 text-right font-semibold text-sky-200 tabular-nums">{formatNumber(totals.completed)}</td>
               <td className="border-r border-white/10 px-2 text-right font-semibold text-red-200 tabular-nums">{formatNumber(totals.remaining)}</td>
-              <td className="border-r border-white/10 px-2 font-semibold">{formatPercent(totalRate)}</td>
+              <td className="border-r border-white/10 px-2 font-semibold">{formatPercent(totals.completionRate)}</td>
               <td className="sticky right-0 z-50 w-[92px] border-l border-white/10 bg-slate-900 px-2">
                 <div className="flex items-center gap-1">
                   <button title={t(language, "edit")} onClick={onEditAllOrders} className="rounded-md p-1.5 text-sky-200 transition hover:bg-white/10 hover:text-white">
@@ -251,7 +197,6 @@ export function ProductionTable({
           </tfoot>
         </table>
       </div>
-      )}
       {hasData ? (
       <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-4 py-3">
         <div className="text-sm text-slate-600">

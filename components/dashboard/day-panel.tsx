@@ -116,7 +116,7 @@ export function DayPanel({
                   </tr>
                 ) : (
                   selectedEntries.map((entry) => {
-                    const order = orders.find((item) => item.id === entry.orderId);
+                    const order = orders.find((item) => item.code === entry.orderId || item.id === entry.orderId);
                     return (
                       <tr key={entry.id} className="odd:bg-white even:bg-slate-50 hover:bg-blue-50">
                         <td className="h-9 border-b border-r border-slate-200 px-2 font-semibold text-blue-700">{order?.code}</td>

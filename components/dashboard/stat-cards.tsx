@@ -4,53 +4,49 @@ import { CheckCircle2, ClipboardList, Gauge, PackageOpen, TrendingUp } from "luc
 import { Card, CardContent } from "@/components/ui/card";
 import { t } from "@/lib/i18n";
 import { formatNumber, formatPercent } from "@/lib/utils";
-import type { Language, OrderProgress } from "@/types/production";
+import type { DashboardStats } from "@/lib/production-calculations";
+import type { Language } from "@/types/production";
 
 type StatCardsProps = {
   language: Language;
-  progress: OrderProgress[];
+  stats: DashboardStats;
 };
 
-export function StatCards({ language, progress }: StatCardsProps) {
-  const totalOrderQuantity = progress.reduce((sum, order) => sum + order.orderQuantity, 0);
-  const completed = progress.reduce((sum, order) => sum + order.completed, 0);
-  const remaining = progress.reduce((sum, order) => sum + order.remaining, 0);
-  const completionRate = totalOrderQuantity > 0 ? (completed / totalOrderQuantity) * 100 : 0;
-
+export function StatCards({ language, stats }: StatCardsProps) {
   const cards = [
     {
       label: t(language, "totalOrders"),
-      value: formatNumber(progress.length),
+      value: formatNumber(stats.totalOrders),
       accent: "text-blue-700 bg-blue-50",
       bar: 100,
       icon: ClipboardList,
     },
     {
       label: t(language, "totalOrderQuantity"),
-      value: formatNumber(totalOrderQuantity),
+      value: formatNumber(stats.totalDelivery),
       accent: "text-slate-700 bg-slate-100",
       bar: 92,
       icon: PackageOpen,
     },
     {
       label: t(language, "completed"),
-      value: formatNumber(completed),
+      value: formatNumber(stats.totalCompleted),
       accent: "text-sky-700 bg-sky-50",
-      bar: completionRate,
+      bar: stats.completionRate,
       icon: CheckCircle2,
     },
     {
       label: t(language, "remaining"),
-      value: formatNumber(remaining),
+      value: formatNumber(stats.totalRemaining),
       accent: "text-red-700 bg-red-50",
-      bar: totalOrderQuantity ? (remaining / totalOrderQuantity) * 100 : 0,
+      bar: stats.totalDelivery ? (stats.totalRemaining / stats.totalDelivery) * 100 : 0,
       icon: Gauge,
     },
     {
       label: t(language, "completionRate"),
-      value: formatPercent(completionRate),
+      value: formatPercent(stats.completionRate),
       accent: "text-emerald-700 bg-emerald-50",
-      bar: completionRate,
+      bar: stats.completionRate,
       icon: TrendingUp,
     },
   ];
@@ -70,7 +66,7 @@ export function StatCards({ language, progress }: StatCardsProps) {
               </div>
             </div>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-full rounded-full bg-blue-600 transition-all duration-500" style={{ width: `${Math.min(card.bar, 100)}%` }} />
+              <div className="h-full rounded-full bg-blue-600 transition-all duration-500" style={{ width: `${Math.max(Math.min(card.bar, 100), 0)}%` }} />
             </div>
           </CardContent>
         </Card>

@@ -27,6 +27,8 @@ export type ProductionOrder = {
   color: string;
   technology: string;
   sizePlan: Record<ProductionSize, number>;
+  producedPlan?: Record<ProductionSize, number>;
+  deliveryPlan?: Record<ProductionSize, number>;
 };
 
 export type ProductionDay = {
@@ -49,8 +51,12 @@ export type ProductionEntry = {
 export type NewProductionEntry = Omit<ProductionEntry, "id" | "createdAt">;
 
 export type OrderProgress = ProductionOrder & {
+  orderedTotal: number;
   deliveredTotal: number;
   completed: number;
   remaining: number;
   completionRate: number;
+  completedBySize: Record<ProductionSize, number>;
+  remainingBySize: Record<ProductionSize, number>;
+  deliveredBySize: Record<ProductionSize, number>;
 };

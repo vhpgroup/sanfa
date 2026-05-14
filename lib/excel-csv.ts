@@ -1,4 +1,5 @@
 import { productionSizes } from "@/lib/constants";
+import { formatDateDisplay, normalizeDate, todayDateString } from "@/lib/date-utils";
 import type { ProductionOrder } from "@/types/production";
 
 const baseHeaders = ["Mã đơn", "Số lượng đơn", "ETD", "Style", "Màu", "Công nghệ"];
@@ -34,16 +35,26 @@ function parseCsvLine(line: string) {
   return cells;
 }
 
+function findHeaderIndex(headers: string[], candidates: string[]) {
+  return headers.findIndex((header) =>
+    candidates.some((candidate) => header.toLowerCase() === candidate.toLowerCase()),
+  );
+}
+
 export function ordersToCsv(orders: ProductionOrder[]) {
-  const headers = [...baseHeaders, ...productionSizes];
+  const producedHeaders = productionSizes.map((size) => `${size} làm`);
+  const deliveryHeaders = productionSizes.map((size) => `${size} giao`);
+  const headers = [...baseHeaders, ...productionSizes, ...producedHeaders, ...deliveryHeaders];
   const rows = orders.map((order) => [
     order.code,
     order.orderQuantity,
-    order.etd,
+    formatDateDisplay(order.etd),
     order.style,
     order.color,
     order.technology,
     ...productionSizes.map((size) => order.sizePlan[size]),
+    ...productionSizes.map((size) => order.producedPlan?.[size] ?? 0),
+    ...productionSizes.map((size) => order.deliveryPlan?.[size] ?? 0),
   ]);
 
   return [headers, ...rows]
@@ -60,15 +71,18 @@ export function csvToOrders(csv: string): ProductionOrder[] {
   if (lines.length < 2) return [];
 
   const headers = parseCsvLine(lines[0]).map((header) => header.trim());
-  const indexOf = (candidates: string[]) =>
-    headers.findIndex((header) => candidates.some((candidate) => header.toLowerCase() === candidate.toLowerCase()));
-
-  const codeIndex = indexOf(["Mã đơn", "Ma don", "Order Code", "orderCode"]);
-  const quantityIndex = indexOf(["Số lượng đơn", "So luong don", "Order Quantity", "orderQuantity"]);
-  const etdIndex = indexOf(["ETD", "etd"]);
-  const styleIndex = indexOf(["Style", "style"]);
-  const colorIndex = indexOf(["Màu", "Mau", "Color", "color"]);
-  const technologyIndex = indexOf(["Công nghệ", "Cong nghe", "Technology", "technology"]);
+  const codeIndex = findHeaderIndex(headers, ["Mã đơn", "MÃ£ Ä‘Æ¡n", "Ma don", "Order Code", "orderCode"]);
+  const quantityIndex = findHeaderIndex(headers, [
+    "Số lượng đơn",
+    "Sá»‘ lÆ°á»£ng Ä‘Æ¡n",
+    "So luong don",
+    "Order Quantity",
+    "orderQuantity",
+  ]);
+  const etdIndex = findHeaderIndex(headers, ["ETD", "etd"]);
+  const styleIndex = findHeaderIndex(headers, ["Style", "style"]);
+  const colorIndex = findHeaderIndex(headers, ["Màu", "MÃ u", "Mau", "Color", "color"]);
+  const technologyIndex = findHeaderIndex(headers, ["Công nghệ", "CÃ´ng nghá»‡", "Cong nghe", "Technology", "technology"]);
 
   return lines.slice(1).map((line, rowIndex) => {
     const cells = parseCsvLine(line);
@@ -79,16 +93,56 @@ export function csvToOrders(csv: string): ProductionOrder[] {
       },
       {} as ProductionOrder["sizePlan"],
     );
+    const deliveryPlan = productionSizes.reduce(
+      (acc, size) => {
+        const directIndex = headers.findIndex((header) =>
+          [
+            `${size} giao`,
+            `${size} da giao`,
+            `${size} đã giao`,
+            `Giao ${size}`,
+            `Da giao ${size}`,
+            `Đã giao ${size}`,
+            `Delivered ${size}`,
+            `Shipped ${size}`,
+          ].some((candidate) => header.toLowerCase() === candidate.toLowerCase()),
+        );
+        return { ...acc, [size]: Math.max(Number(cells[directIndex] ?? 0) || 0, 0) };
+      },
+      {} as ProductionOrder["sizePlan"],
+    );
+    const producedPlan = productionSizes.reduce(
+      (acc, size) => {
+        const directIndex = headers.findIndex((header) =>
+          [
+            `${size} làm`,
+            `${size} lam`,
+            `${size} da lam`,
+            `${size} đã làm`,
+            `Làm ${size}`,
+            `Lam ${size}`,
+            `Da lam ${size}`,
+            `Đã làm ${size}`,
+            `Done ${size}`,
+            `Produced ${size}`,
+          ].some((candidate) => header.toLowerCase() === candidate.toLowerCase()),
+        );
+        return { ...acc, [size]: Math.max(Number(cells[directIndex] ?? 0) || 0, 0) };
+      },
+      {} as ProductionOrder["sizePlan"],
+    );
 
     return {
       id: `ord-import-${Date.now()}-${rowIndex}`,
       code: cells[codeIndex]?.trim() || `IMPORT-${rowIndex + 1}`,
       orderQuantity: Math.max(Number(cells[quantityIndex] ?? 0) || 0, 0),
-      etd: cells[etdIndex]?.trim() || new Date().toISOString().slice(0, 10),
+      etd: normalizeDate(cells[etdIndex]?.trim() || todayDateString()),
       style: cells[styleIndex]?.trim() || "",
       color: cells[colorIndex]?.trim() || "",
       technology: cells[technologyIndex]?.trim() || "",
       sizePlan,
+      producedPlan,
+      deliveryPlan,
     };
   });
 }

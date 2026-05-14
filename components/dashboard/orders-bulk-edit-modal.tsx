@@ -6,12 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { productionSizes } from "@/lib/constants";
+import { normalizeDate, todayDateString } from "@/lib/date-utils";
 import { t } from "@/lib/i18n";
 import type { Language, ProductionOrder, ProductionSize } from "@/types/production";
 
-type EditableOrder = Omit<ProductionOrder, "orderQuantity" | "sizePlan"> & {
+type EditableOrder = Omit<ProductionOrder, "orderQuantity" | "sizePlan" | "producedPlan" | "deliveryPlan"> & {
   orderQuantity: string;
   sizePlan: Record<ProductionSize, string>;
+  producedPlan: Record<ProductionSize, string>;
+  deliveryPlan: Record<ProductionSize, string>;
 };
 
 type OrdersBulkEditModalProps = {
@@ -25,9 +28,18 @@ type OrdersBulkEditModalProps = {
 function toEditable(order: ProductionOrder): EditableOrder {
   return {
     ...order,
+    etd: normalizeDate(order.etd),
     orderQuantity: String(order.orderQuantity),
     sizePlan: productionSizes.reduce(
       (acc, size) => ({ ...acc, [size]: String(order.sizePlan[size]) }),
+      {} as Record<ProductionSize, string>,
+    ),
+    producedPlan: productionSizes.reduce(
+      (acc, size) => ({ ...acc, [size]: String(order.producedPlan?.[size] ?? 0) }),
+      {} as Record<ProductionSize, string>,
+    ),
+    deliveryPlan: productionSizes.reduce(
+      (acc, size) => ({ ...acc, [size]: String(order.deliveryPlan?.[size] ?? 0) }),
       {} as Record<ProductionSize, string>,
     ),
   };
@@ -36,9 +48,18 @@ function toEditable(order: ProductionOrder): EditableOrder {
 function toOrder(order: EditableOrder): ProductionOrder {
   return {
     ...order,
+    etd: normalizeDate(order.etd),
     orderQuantity: Math.max(Number(order.orderQuantity) || 0, 0),
     sizePlan: productionSizes.reduce(
       (acc, size) => ({ ...acc, [size]: Math.max(Number(order.sizePlan[size]) || 0, 0) }),
+      {} as ProductionOrder["sizePlan"],
+    ),
+    producedPlan: productionSizes.reduce(
+      (acc, size) => ({ ...acc, [size]: Math.max(Number(order.producedPlan[size]) || 0, 0) }),
+      {} as ProductionOrder["sizePlan"],
+    ),
+    deliveryPlan: productionSizes.reduce(
+      (acc, size) => ({ ...acc, [size]: Math.max(Number(order.deliveryPlan[size]) || 0, 0) }),
       {} as ProductionOrder["sizePlan"],
     ),
   };
@@ -60,7 +81,15 @@ export function OrdersBulkEditModal({ language, open, orders, onOpenChange, onSa
   function updateSize(orderId: string, size: ProductionSize, value: string) {
     setDrafts((current) =>
       current.map((order) =>
-        order.id === orderId ? { ...order, sizePlan: { ...order.sizePlan, [size]: value } } : order,
+        order.id === orderId ? { ...order, producedPlan: { ...order.producedPlan, [size]: value } } : order,
+      ),
+    );
+  }
+
+  function updateDelivery(orderId: string, size: ProductionSize, value: string) {
+    setDrafts((current) =>
+      current.map((order) =>
+        order.id === orderId ? { ...order, deliveryPlan: { ...order.deliveryPlan, [size]: value } } : order,
       ),
     );
   }
@@ -73,11 +102,19 @@ export function OrdersBulkEditModal({ language, open, orders, onOpenChange, onSa
         id: `ord-new-${crypto.randomUUID()}`,
         code: `NEW-${String(nextIndex).padStart(3, "0")}`,
         orderQuantity: "0",
-        etd: new Date().toISOString().slice(0, 10),
+        etd: todayDateString(),
         style: "",
         color: "",
         technology: "",
         sizePlan: productionSizes.reduce(
+          (acc, size) => ({ ...acc, [size]: "0" }),
+          {} as Record<ProductionSize, string>,
+        ),
+        producedPlan: productionSizes.reduce(
+          (acc, size) => ({ ...acc, [size]: "0" }),
+          {} as Record<ProductionSize, string>,
+        ),
+        deliveryPlan: productionSizes.reduce(
           (acc, size) => ({ ...acc, [size]: "0" }),
           {} as Record<ProductionSize, string>,
         ),
@@ -110,10 +147,10 @@ export function OrdersBulkEditModal({ language, open, orders, onOpenChange, onSa
             </Button>
           </div>
           <div className="production-table-scroll max-h-[62vh] overflow-auto rounded-xl border">
-            <table className="min-w-[2300px] border-separate border-spacing-0 text-xs">
+            <table className="min-w-[3600px] border-separate border-spacing-0 text-xs">
               <thead className="sticky top-0 z-10 bg-slate-100 text-slate-700">
                 <tr>
-                  {[t(language, "orderCode"), t(language, "orderQuantity"), t(language, "etd"), t(language, "style"), t(language, "color"), t(language, "technology"), ...productionSizes, t(language, "actions")].map((head) => (
+                  {[t(language, "orderCode"), t(language, "orderQuantity"), t(language, "etd"), t(language, "style"), t(language, "color"), t(language, "technology"), ...productionSizes.map((size) => `${size} làm`), ...productionSizes.map((size) => `${size} giao`), t(language, "actions")].map((head) => (
                     <th key={head} className="h-8 whitespace-nowrap border-b border-r border-slate-200 px-2 text-left font-semibold last:border-r-0">
                       {head}
                     </th>
@@ -143,7 +180,12 @@ export function OrdersBulkEditModal({ language, open, orders, onOpenChange, onSa
                     </td>
                     {productionSizes.map((size) => (
                       <td key={size} className="border-b border-r border-slate-200 p-1 last:border-r-0">
-                        <Input className="h-8 px-2 text-right text-xs" type="number" min={0} value={order.sizePlan[size]} onChange={(event) => updateSize(order.id, size, event.target.value)} />
+                        <Input className="h-8 px-2 text-right text-xs" type="number" min={0} value={order.producedPlan[size]} onChange={(event) => updateSize(order.id, size, event.target.value)} />
+                      </td>
+                    ))}
+                    {productionSizes.map((size) => (
+                      <td key={`delivery-${size}`} className="border-b border-r border-slate-200 bg-emerald-50 p-1 last:border-r-0">
+                        <Input className="h-8 bg-white px-2 text-right text-xs" type="number" min={0} value={order.deliveryPlan[size]} onChange={(event) => updateDelivery(order.id, size, event.target.value)} />
                       </td>
                     ))}
                     <td className="border-b border-slate-200 p-1">

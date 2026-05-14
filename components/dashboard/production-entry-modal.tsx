@@ -30,7 +30,7 @@ export function ProductionEntryModal({
   editingEntry,
   onSave,
 }: ProductionEntryModalProps) {
-  const defaultOrderId = orders[0]?.id ?? "";
+  const defaultOrderId = orders[0]?.code ?? "";
   const [dayId, setDayId] = useState(selectedDayId);
   const [orderId, setOrderId] = useState(defaultOrderId);
   const [size, setSize] = useState<ProductionSize>("40");
@@ -98,7 +98,7 @@ export function ProductionEntryModal({
               </SelectTrigger>
               <SelectContent>
                 {orders.map((order) => (
-                  <SelectItem key={order.id} value={order.id}>
+                  <SelectItem key={order.id} value={order.code}>
                     {order.code} - {order.style}
                   </SelectItem>
                 ))}
