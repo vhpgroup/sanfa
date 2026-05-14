@@ -3,13 +3,24 @@ import { formatDateDisplay, normalizeDate, todayDateString } from "@/lib/date-ut
 import type { ProductionOrder } from "@/types/production";
 
 const baseHeaders = ["Mã đơn", "Số lượng đơn", "ETD", "Style", "Màu", "Công nghệ"];
+const delimiters = [",", ";", "\t"] as const;
+
+function normalizeHeader(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/\s+/g, " ");
+}
 
 function escapeCsvCell(value: string | number) {
   const text = String(value);
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-function parseCsvLine(line: string) {
+function parseDelimitedLine(line: string, delimiter: string) {
   const cells: string[] = [];
   let current = "";
   let quoted = false;
@@ -23,7 +34,7 @@ function parseCsvLine(line: string) {
       index += 1;
     } else if (char === '"') {
       quoted = !quoted;
-    } else if (char === "," && !quoted) {
+    } else if (char === delimiter && !quoted) {
       cells.push(current);
       current = "";
     } else {
@@ -35,9 +46,36 @@ function parseCsvLine(line: string) {
   return cells;
 }
 
+function detectDelimiter(headerLine: string) {
+  return delimiters.reduce(
+    (best, delimiter) => {
+      const count = parseDelimitedLine(headerLine, delimiter).length;
+      return count > best.count ? { delimiter, count } : best;
+    },
+    { delimiter: ",", count: 1 },
+  ).delimiter;
+}
+
+function parseNumber(value: string | undefined) {
+  if (!value) return 0;
+  const normalized = value.trim().replace(/,/g, "");
+  return Math.max(Number(normalized) || 0, 0);
+}
+
 function findHeaderIndex(headers: string[], candidates: string[]) {
-  return headers.findIndex((header) =>
-    candidates.some((candidate) => header.toLowerCase() === candidate.toLowerCase()),
+  const normalizedCandidates = candidates.map(normalizeHeader);
+  return headers.findIndex((header) => normalizedCandidates.includes(normalizeHeader(header)));
+}
+
+function findSizeHeaderIndex(headers: string[], candidates: string[]) {
+  const normalizedCandidates = candidates.map(normalizeHeader);
+  return headers.findIndex((header) => normalizedCandidates.includes(normalizeHeader(header)));
+}
+
+function emptySizePlan() {
+  return productionSizes.reduce(
+    (acc, size) => ({ ...acc, [size]: 0 }),
+    {} as ProductionOrder["sizePlan"],
   );
 }
 
@@ -70,76 +108,82 @@ export function csvToOrders(csv: string): ProductionOrder[] {
 
   if (lines.length < 2) return [];
 
-  const headers = parseCsvLine(lines[0]).map((header) => header.trim());
-  const codeIndex = findHeaderIndex(headers, ["Mã đơn", "MÃ£ Ä‘Æ¡n", "Ma don", "Order Code", "orderCode"]);
+  const delimiter = detectDelimiter(lines[0]);
+  const headers = parseDelimitedLine(lines[0], delimiter).map((header) => header.trim());
+  const codeIndex = findHeaderIndex(headers, ["Mã đơn", "Ma don", "Order Code", "orderCode"]);
   const quantityIndex = findHeaderIndex(headers, [
     "Số lượng đơn",
-    "Sá»‘ lÆ°á»£ng Ä‘Æ¡n",
     "So luong don",
     "Order Quantity",
     "orderQuantity",
+    "Ordered Qty",
+    "orderedQty",
   ]);
   const etdIndex = findHeaderIndex(headers, ["ETD", "etd"]);
   const styleIndex = findHeaderIndex(headers, ["Style", "style"]);
-  const colorIndex = findHeaderIndex(headers, ["Màu", "MÃ u", "Mau", "Color", "color"]);
-  const technologyIndex = findHeaderIndex(headers, ["Công nghệ", "CÃ´ng nghá»‡", "Cong nghe", "Technology", "technology"]);
+  const colorIndex = findHeaderIndex(headers, ["Màu", "Mau", "Color", "color"]);
+  const technologyIndex = findHeaderIndex(headers, ["Công nghệ", "Cong nghe", "Technology", "technology"]);
+  const safeCodeIndex = codeIndex >= 0 ? codeIndex : 0;
+  const safeQuantityIndex = quantityIndex >= 0 ? quantityIndex : 1;
+  const safeEtdIndex = etdIndex >= 0 ? etdIndex : 2;
+  const safeStyleIndex = styleIndex >= 0 ? styleIndex : 3;
+  const safeColorIndex = colorIndex >= 0 ? colorIndex : 4;
+  const safeTechnologyIndex = technologyIndex >= 0 ? technologyIndex : 5;
 
   return lines.slice(1).map((line, rowIndex) => {
-    const cells = parseCsvLine(line);
+    const cells = parseDelimitedLine(line, delimiter);
     const sizePlan = productionSizes.reduce(
       (acc, size) => {
-        const directIndex = headers.findIndex((header) => header === size || header === `Size ${size}`);
-        return { ...acc, [size]: Math.max(Number(cells[directIndex] ?? 0) || 0, 0) };
+        const directIndex = findSizeHeaderIndex(headers, [size, `Size ${size}`, `${size} đơn`, `${size} don`, `Ordered ${size}`]);
+        return { ...acc, [size]: parseNumber(cells[directIndex]) };
       },
-      {} as ProductionOrder["sizePlan"],
-    );
-    const deliveryPlan = productionSizes.reduce(
-      (acc, size) => {
-        const directIndex = headers.findIndex((header) =>
-          [
-            `${size} giao`,
-            `${size} da giao`,
-            `${size} đã giao`,
-            `Giao ${size}`,
-            `Da giao ${size}`,
-            `Đã giao ${size}`,
-            `Delivered ${size}`,
-            `Shipped ${size}`,
-          ].some((candidate) => header.toLowerCase() === candidate.toLowerCase()),
-        );
-        return { ...acc, [size]: Math.max(Number(cells[directIndex] ?? 0) || 0, 0) };
-      },
-      {} as ProductionOrder["sizePlan"],
+      emptySizePlan(),
     );
     const producedPlan = productionSizes.reduce(
       (acc, size) => {
-        const directIndex = headers.findIndex((header) =>
-          [
-            `${size} làm`,
-            `${size} lam`,
-            `${size} da lam`,
-            `${size} đã làm`,
-            `Làm ${size}`,
-            `Lam ${size}`,
-            `Da lam ${size}`,
-            `Đã làm ${size}`,
-            `Done ${size}`,
-            `Produced ${size}`,
-          ].some((candidate) => header.toLowerCase() === candidate.toLowerCase()),
-        );
-        return { ...acc, [size]: Math.max(Number(cells[directIndex] ?? 0) || 0, 0) };
+        const directIndex = findSizeHeaderIndex(headers, [
+          `${size} làm`,
+          `${size} lam`,
+          `${size} đã làm`,
+          `${size} da lam`,
+          `Làm ${size}`,
+          `Lam ${size}`,
+          `Đã làm ${size}`,
+          `Da lam ${size}`,
+          `Done ${size}`,
+          `Produced ${size}`,
+        ]);
+        return { ...acc, [size]: parseNumber(cells[directIndex]) };
       },
-      {} as ProductionOrder["sizePlan"],
+      emptySizePlan(),
     );
+    const deliveryPlan = productionSizes.reduce(
+      (acc, size) => {
+        const directIndex = findSizeHeaderIndex(headers, [
+          `${size} giao`,
+          `${size} đã giao`,
+          `${size} da giao`,
+          `Giao ${size}`,
+          `Đã giao ${size}`,
+          `Da giao ${size}`,
+          `Delivered ${size}`,
+          `Shipped ${size}`,
+        ]);
+        return { ...acc, [size]: parseNumber(cells[directIndex]) };
+      },
+      emptySizePlan(),
+    );
+    const sizeTotal = productionSizes.reduce((sum, size) => sum + sizePlan[size], 0);
+    const importedOrderQuantity = parseNumber(cells[safeQuantityIndex]);
 
     return {
       id: `ord-import-${Date.now()}-${rowIndex}`,
-      code: cells[codeIndex]?.trim() || `IMPORT-${rowIndex + 1}`,
-      orderQuantity: Math.max(Number(cells[quantityIndex] ?? 0) || 0, 0),
-      etd: normalizeDate(cells[etdIndex]?.trim() || todayDateString()),
-      style: cells[styleIndex]?.trim() || "",
-      color: cells[colorIndex]?.trim() || "",
-      technology: cells[technologyIndex]?.trim() || "",
+      code: cells[safeCodeIndex]?.trim() || `IMPORT-${rowIndex + 1}`,
+      orderQuantity: importedOrderQuantity > 0 ? importedOrderQuantity : sizeTotal,
+      etd: normalizeDate(cells[safeEtdIndex]?.trim() || todayDateString()),
+      style: cells[safeStyleIndex]?.trim() || "",
+      color: cells[safeColorIndex]?.trim() || "",
+      technology: cells[safeTechnologyIndex]?.trim() || "",
       sizePlan,
       producedPlan,
       deliveryPlan,
