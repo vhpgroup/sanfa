@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import { productionSizes } from "@/lib/constants";
 import { formatDateDisplay } from "@/lib/date-utils";
+import { csvToOrders } from "@/lib/excel-csv";
 import type { ProductionOrder } from "@/types/production";
 
 const baseHeaders = ["M\u00e3 \u0111\u01a1n", "S\u1ed1 l\u01b0\u1ee3ng", "ETD", "Style", "M\u00e0u", "C\u00f4ng ngh\u1ec7"];
@@ -44,4 +45,14 @@ export function ordersToXlsxBlob(orders: ProductionOrder[]) {
   return new Blob([output], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
+}
+
+export function xlsxArrayBufferToOrders(data: ArrayBuffer) {
+  const workbook = XLSX.read(data, { type: "array" });
+  const firstSheetName = workbook.SheetNames[0];
+  if (!firstSheetName) return [];
+
+  const worksheet = workbook.Sheets[firstSheetName];
+  const csv = XLSX.utils.sheet_to_csv(worksheet, { FS: ",", RS: "\n" });
+  return csvToOrders(csv);
 }

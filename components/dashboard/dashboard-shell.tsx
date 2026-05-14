@@ -13,7 +13,7 @@ import { Sidebar } from "@/components/dashboard/sidebar";
 import { StatCards } from "@/components/dashboard/stat-cards";
 import { Button } from "@/components/ui/button";
 import { csvToOrders } from "@/lib/excel-csv";
-import { ordersToXlsxBlob } from "@/lib/excel-xlsx";
+import { ordersToXlsxBlob, xlsxArrayBufferToOrders } from "@/lib/excel-xlsx";
 import { t } from "@/lib/i18n";
 import { getDashboardStats, getSummaryTotals } from "@/lib/production-calculations";
 import { selectOrderProgress, useProductionStore } from "@/store/production-store";
@@ -114,8 +114,12 @@ export function DashboardShell() {
     event.target.value = "";
     if (!file) return;
 
-    const csv = await readImportFile(file);
-    const importedOrders = csvToOrders(csv);
+    const isXlsx =
+      file.name.toLowerCase().endsWith(".xlsx") ||
+      file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    const importedOrders = isXlsx
+      ? xlsxArrayBufferToOrders(await file.arrayBuffer())
+      : csvToOrders(await readImportFile(file));
     const existingIdByCode = new Map(orders.map((order) => [order.code, order.id]));
     updateOrders(
       importedOrders.map((order) => ({
@@ -142,7 +146,7 @@ export function DashboardShell() {
           ref={fileInputRef}
           className="hidden"
           type="file"
-          accept=".csv,text/csv,application/vnd.ms-excel"
+          accept=".xlsx,.csv,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           onChange={handleImportExcel}
         />
         <main className="flex min-h-0 flex-1 gap-4 overflow-hidden p-4">
