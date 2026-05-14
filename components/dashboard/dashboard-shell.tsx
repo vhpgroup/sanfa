@@ -12,7 +12,8 @@ import { ProductionTable } from "@/components/dashboard/production-table";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { StatCards } from "@/components/dashboard/stat-cards";
 import { Button } from "@/components/ui/button";
-import { csvToOrders, ordersToCsv } from "@/lib/excel-csv";
+import { csvToOrders } from "@/lib/excel-csv";
+import { ordersToXlsxBlob } from "@/lib/excel-xlsx";
 import { t } from "@/lib/i18n";
 import { getDashboardStats, getSummaryTotals } from "@/lib/production-calculations";
 import { selectOrderProgress, useProductionStore } from "@/store/production-store";
@@ -84,12 +85,11 @@ export function DashboardShell() {
   }
 
   function handleExportExcel() {
-    const csv = ordersToCsv(orders);
-    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+    const blob = ordersToXlsxBlob(orders);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "bang-thong-ke-san-luong.csv";
+    link.download = "test.xlsx";
     link.click();
     URL.revokeObjectURL(url);
   }

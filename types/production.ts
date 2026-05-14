@@ -16,7 +16,10 @@ export type ProductionSize =
   | "42"
   | "42.5"
   | "43"
-  | "43.5";
+  | "43.5"
+  | "44"
+  | "44.5"
+  | "45";
 
 export type ProductionOrder = {
   id: string;

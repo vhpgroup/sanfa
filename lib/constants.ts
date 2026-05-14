@@ -17,4 +17,7 @@ export const productionSizes: ProductionSize[] = [
   "42.5",
   "43",
   "43.5",
+  "44",
+  "44.5",
+  "45",
 ];
